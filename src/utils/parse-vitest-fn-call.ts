@@ -336,7 +336,7 @@ const resolveVitestFn = (
   identifier: string,
 ): ResolvedVitestFn | null => {
   const scope = getScope(context, node)
-  const maybeImport = resolveScope(scope, identifier)
+  const maybeImport = resolveScope(scope, identifier, context)
 
   if (maybeImport === 'local') return null
 
@@ -382,17 +382,31 @@ const resolvePossibleAliasedGlobal = (
   return null
 }
 
-const isAncestorTestCaseCall = ({ parent }: TSESTree.Node) => {
-  if (
-    parent?.type === AST_NODE_TYPES.CallExpression &&
-    parent.callee.type === AST_NODE_TYPES.Identifier
-  )
+const isAncestorTestCaseCall = (node: TSESTree.Node, context: TSESLint.RuleContext<string, unknown[]>): boolean => {
+  const { parent } = node
+  if (parent?.type !== AST_NODE_TYPES.CallExpression) return false
+
+  // Check direct identifier calls like test() or it()
+  if (parent.callee.type === AST_NODE_TYPES.Identifier) {
     return TestCaseName.hasOwnProperty(parent.callee.name)
+  }
+
+  // Check member expression calls like test.skip(), it.only(), etc.
+  if (parent.callee.type === AST_NODE_TYPES.MemberExpression) {
+    const object = parent.callee.object
+    if (object.type === AST_NODE_TYPES.Identifier) {
+      return TestCaseName.hasOwnProperty(object.name)
+    }
+  }
+
+  // Check if it's a vitest function call using our existing parser
+  return isTypeOfVitestFnCall(parent, context, ['test'])
 }
 
 export const resolveScope = (
   scope: TSESLint.Scope.Scope,
   identifier: string,
+  context?: TSESLint.RuleContext<string, unknown[]>,
 ): ImportDetails | 'local' | 'testContext' | null => {
   let currentScope: TSESLint.Scope.Scope | null = scope
 
@@ -423,7 +437,7 @@ export const resolveScope = (
             (params) => params.type === AST_NODE_TYPES.Identifier,
           )
         : undefined
-      if (namedParam && isAncestorTestCaseCall(namedParam.parent))
+      if (namedParam && namedParam.parent && context && isAncestorTestCaseCall(namedParam.parent, context))
         return 'testContext'
 
       const importDetails = describePossibleImportDef(def)

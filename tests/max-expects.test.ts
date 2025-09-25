@@ -99,3 +99,50 @@ ruleTester.run(RULE_NAME, rule, {
     },
   ],
 })
+
+ruleTester.run(`${RULE_NAME} (with test context within describe)`, rule, {
+  valid: [
+    `import { it as base, describe, expect } from 'vitest'
+    const it = base.extend({})
+    describe('my tests', () => {
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should pass', () => { expect(true).toBeDefined() })
+      })
+    `,
+  ],
+  invalid: [
+    {
+      code: `import { it as base, describe, expect } from 'vitest'
+      const it = base.extend({})
+      describe('my tests', () => {
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should pass', () => { expect(true).toBeDefined() })
+        it('should not pass', () => {
+          expect(true).toBeDefined()
+          expect(true).toBeDefined()
+          expect(true).toBeDefined()
+          expect(true).toBeDefined()
+          expect(true).toBeDefined()
+          expect(true).toBeDefined()
+        })
+      })
+      `,
+      errors: [
+        {
+          messageId: 'maxExpect',
+          line: 16,
+          column: 11,
+        },
+      ],
+    },
+  ],
+})
